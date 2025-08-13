@@ -67,14 +67,14 @@ log_info "VM konfiguráció:"
 read -p "VM név [proxmox-ve]: " VM_NAME
 VM_NAME=${VM_NAME:-proxmox-ve}
 
-read -p "Memória MB-ban [6144]: " MEMORY
-MEMORY=${MEMORY:-6144}
+read -p "Memória MB-ban [8192]: " MEMORY
+MEMORY=${MEMORY:-8192}
 
-read -p "CPU magok száma [2]: " VCPUS
-VCPUS=${VCPUS:-2}
+read -p "CPU magok száma [4]: " VCPUS
+VCPUS=${VCPUS:-4}
 
-read -p "Disk méret GB-ban [80]: " DISK_SIZE
-DISK_SIZE=${DISK_SIZE:-80}
+read -p "Disk méret GB-ban [100]: " DISK_SIZE
+DISK_SIZE=${DISK_SIZE:-100}
 
 echo ""
 log_info "VM konfiguráció:"
@@ -108,24 +108,18 @@ if virsh list --all | grep -q "$VM_NAME"; then
 fi
 
 # VM létrehozása
-log_info "Optimalizált Proxmox VM indítása (Google Cloud nested virt)..."
-
-# CPU features optimalizáció nested környezethez
+log_info "Proxmox VM indítása ISO-ból..."
 virt-install \
     --name="$VM_NAME" \
     --memory="$MEMORY" \
     --vcpus="$VCPUS" \
-    --cpu host-passthrough,cache.mode=passthrough \
-    --disk size="$DISK_SIZE",format=qcow2,cache=writeback,io=native \
+    --disk size="$DISK_SIZE",format=qcow2 \
     --cdrom="$ISO_PATH" \
     --network bridge=virbr0,model=virtio \
     --graphics vnc,listen=0.0.0.0,port=5900 \
     --console pty,target_type=serial \
     --boot cdrom,hd \
     --os-variant=linux2022 \
-    --features kvm_hidden=on,acpi=on \
-    --clock offset=utc,rtc_tickpolicy=catchup \
-    --pm suspend_to_mem.enabled=off,suspend_to_disk.enabled=off \
     --noautoconsole
 
 if [ $? -eq 0 ]; then
@@ -134,7 +128,7 @@ if [ $? -eq 0 ]; then
     # VNC információk
     echo ""
     echo "================================================"
-    echo "🎯 OPTIMALIZÁLT PROXMOX TELEPÍTÉS"
+    echo "TELEPÍTÉSI INFORMÁCIÓK"
     echo "================================================"
     
     SERVER_IP=$(hostname -I | awk '{print $1}')
@@ -142,36 +136,29 @@ if [ $? -eq 0 ]; then
     VNC_FULL_PORT=$((5900 + VNC_PORT))
     
     echo ""
-    echo "📊 RESOURCE ALLOKÁCIÓ:"
-    echo "├── Google Cloud VM: 4 vCPU, 32GB RAM"
-    echo "├── Rocky Linux host: ~0.5 vCPU, 2GB RAM"
-    echo "├── Proxmox VE: $VCPUS vCPU, $((MEMORY/1024))GB RAM"
-    echo "└── Maradék VM-eknek: ~1.5 vCPU, ~24GB RAM"
-    
-    echo ""
-    log_info "🖥️ VNC KAPCSOLAT:"
-    echo "  Direkt: $SERVER_IP:$VNC_FULL_PORT"
-    echo "  Biztonságos tunnel:"
-    echo "    ssh -L 5900:localhost:$VNC_FULL_PORT saborobag@$SERVER_IP"
-    echo "    Majd VNC: localhost:5900"
+    log_info "VNC kapcsolat:"
+    echo "  Cím: $SERVER_IP:$VNC_FULL_PORT"
+    echo "  Vagy: $SERVER_IP:590$VNC_PORT"
     echo ""
     
-    log_info "📋 PROXMOX TELEPÍTÉSI LÉPÉSEK:"
-    echo "1. 🔗 Kapcsolódj VNC-vel"
-    echo "2. 🎛️  Válaszd: Install Proxmox VE"
-    echo "3. ⚙️  Disk: teljes ${DISK_SIZE}GB használata"
-    echo "4. 🌍 Country/Timezone beállítása"
-    echo "5. 🔑 Root jelszó + email cím"
-    echo "6. 🌐 Hálózat: DHCP (auto)"
-    echo "7. ⏳ Várd meg a telepítést (~10-15 perc)"
-    echo "8. 🔄 Reboot után web UI: https://[proxmox-ip]:8006"
+    log_info "SSH tunnel (biztonságosabb):"
+    echo "  ssh -L 5900:localhost:$VNC_FULL_PORT $(whoami)@$SERVER_IP"
+    echo "  Majd VNC-vel: localhost:5900"
     echo ""
     
-    log_info "🛠️ HASZNOS PARANCSOK:"
-    echo "  VM lista: virsh list --all"
-    echo "  VM leállítás: virsh shutdown $VM_NAME"
-    echo "  VM törlés: virsh destroy $VM_NAME && virsh undefine $VM_NAME --remove-all-storage"
-    echo "  Resource monitor: sudo bash /root/check-resources.sh"
+    log_info "VM kezelő parancsok:"
+    echo "  Lista: virsh list --all"
+    echo "  Indítás: virsh start $VM_NAME"
+    echo "  Leállítás: virsh shutdown $VM_NAME"
+    echo "  Törlés: virsh destroy $VM_NAME && virsh undefine $VM_NAME --remove-all-storage"
+    echo "  Konzol: virsh console $VM_NAME"
+    echo ""
+    
+    log_info "Proxmox telepítési lépések:"
+    echo "1. Kapcsolódj VNC-vel a fenti címre"
+    echo "2. Kövesd a Proxmox telepítő lépéseit"
+    echo "3. Telepítés után: reboot"
+    echo "4. Web interface: https://[proxmox-ip]:8006"
     echo ""
     
     log_warn "FIGYELEM: A VM most fut és várakozik a telepítésre!"
